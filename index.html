@@ -154,6 +154,17 @@
   .icon-box svg{ width: 40px; height: 40px; display:block; }
   .icon-box img{ width: 44px; height: 44px; display:block; object-fit:contain; }
 
+  .ext-badge{
+    position:absolute; bottom:-4px; right:-4px;
+    width:18px; height:18px;
+    border-radius:50%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    display:flex; align-items:center; justify-content:center;
+    color: var(--text-dim);
+  }
+  .ext-badge svg{ width:9px; height:9px; }
+
   .tile:hover .icon-box,
   .tile:focus-visible .icon-box{
     transform: translateY(-3px) scale(1.035);
@@ -500,19 +511,27 @@
       name: "Router",
       url: "http://192.168.101.1/",
       color: "#FFB454",
-      icon: "router"
+      icon: "router",
+      embeddable: false
     },
     {
       name: "n8n",
       url: "http://offr.tail05ae98.ts.net:5678/home/workflows",
       color: "#EA4B71",
-      icon: "n8n"
+      icon: "n8n",
+      embeddable: false
     },
     {
       name: "Dashboard",
       url: "http://offr.tail05ae98.ts.net:19999/spaces/offr/rooms/local/overview#metrics_correlation=false&after=-900&before=0&modal=&modalTab=&_o=q1ZKzkgsKvFLzE3VLUvMUbJSyk3NK40PriwuSc3VNVDSUYrOSy1JSSxJjE9MT80ric_JT07MidXVxa-tFgA",
       color: "#4ADE80",
       icon: "dashboard"
+    },
+    {
+      name: "Offr Chat",
+      url: "offrChat.html",
+      color: "#22D3EE",
+      icon: "chat"
     }
   ];
 
@@ -544,7 +563,13 @@
       <path d="M12 15l3-4.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
       <circle cx="12" cy="15" r="1.1" fill="currentColor"/>
     </svg>`,
-    jellyfin: `<img src="jellyfin.png" alt="Jellyfin">`
+    jellyfin: `<img src="jellyfin.png" alt="Jellyfin">`,
+    chat: `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M4 12.2c0-4.2 3.6-7.6 8-7.6s8 3.4 8 7.6-3.6 7.6-8 7.6c-1 0-1.9-.15-2.8-.45L5.5 20.5l1-3.5A7.2 7.2 0 0 1 4 12.2z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+      <circle cx="9" cy="12.2" r="1" fill="currentColor"/>
+      <circle cx="12" cy="12.2" r="1" fill="currentColor"/>
+      <circle cx="15" cy="12.2" r="1" fill="currentColor"/>
+    </svg>`
   };
 
   function iconMarkup(app){
@@ -557,11 +582,23 @@
     const btn = document.createElement('button');
     btn.className = 'tile';
     btn.style.setProperty('--icon-color', app.color);
+    if (app.embeddable === false){
+      btn.title = app.name + ' blocks embedding — this will navigate away from the dashboard';
+    }
+    const badge = app.embeddable === false
+      ? `<div class="ext-badge"><svg viewBox="0 0 24 24" fill="none"><path d="M14 4h6v6M20 4L10 14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 13.5V19a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 19V7A1.5 1.5 0 0 1 5 5.5h5.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`
+      : '';
     btn.innerHTML = `
-      <div class="icon-box" style="color:${app.color}">${iconMarkup(app)}</div>
+      <div class="icon-box" style="color:${app.color}">${iconMarkup(app)}${badge}</div>
       <div class="tile-label">${app.name}</div>
     `;
-    btn.addEventListener('click', () => openModal(app));
+    btn.addEventListener('click', () => {
+      if (app.embeddable === false){
+        window.location.href = app.url;
+      } else {
+        openModal(app);
+      }
+    });
     grid.appendChild(btn);
   });
 
@@ -647,9 +684,15 @@
         const picker = slot.querySelector('.slot-picker');
         APPS.forEach(a => {
           const b = document.createElement('button');
-          b.innerHTML = `${iconMarkup(a)}<span>${a.name}</span>`;
+          const label = a.embeddable === false ? a.name + ' ↗' : a.name;
+          b.innerHTML = `${iconMarkup(a)}<span>${label}</span>`;
           b.style.color = a.color;
-          b.addEventListener('click', () => { slots[i] = a; renderWorkspace(); });
+          if (a.embeddable === false){
+            b.title = 'This app blocks embedding — opens here, replacing this page';
+            b.addEventListener('click', () => { window.location.href = a.url; });
+          } else {
+            b.addEventListener('click', () => { slots[i] = a; renderWorkspace(); });
+          }
           picker.appendChild(b);
         });
       } else {
