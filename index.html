@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>offr — dashboard</title>
+<meta name="description" content="Home network launcher">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2222%22 fill=%22%230A0C10%22/><circle cx=%2250%22 cy=%2250%22 r=%2216%22 fill=%22none%22 stroke=%22%234ADE80%22 stroke-width=%228%22/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0A0C10;
+    --panel: #12161D;
+    --panel-hover: #181D26;
+    --border: #232A35;
+    --text: #E8EAED;
+    --text-dim: #7C8493;
+    --accent: #4ADE80;
+    --amber: #FFB454;
+  }
+
+  *{ box-sizing: border-box; margin:0; padding:0; }
+
+  html,body{
+    height:100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+    overflow-x:hidden;
+  }
+
+  button{ font-family:inherit; }
+
+  /* subtle network-mesh backdrop */
+  .mesh{
+    position:fixed; inset:0; z-index:0;
+    background-image:
+      radial-gradient(circle at 15% 20%, rgba(74,222,128,0.06), transparent 40%),
+      radial-gradient(circle at 85% 15%, rgba(255,180,84,0.05), transparent 40%),
+      radial-gradient(circle at 50% 90%, rgba(74,222,128,0.04), transparent 45%);
+    pointer-events:none;
+  }
+  .mesh svg{ position:absolute; inset:0; width:100%; height:100%; opacity:0.35; }
+
+  .wrap{
+    position:relative; z-index:1;
+    min-height:100vh;
+    display:flex; flex-direction:column;
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 0 32px;
+  }
+
+  header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding: 36px 4px 8px;
+    gap: 16px;
+  }
+
+  .brand{
+    display:flex; align-items:center; gap:10px;
+    font-family:'JetBrains Mono', monospace;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+  .brand .dot{
+    width:8px; height:8px; border-radius:50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  .header-right{
+    display:flex; align-items:center; gap:14px;
+  }
+
+  .layout-launch{
+    display:flex; align-items:center; gap:6px;
+    background: var(--panel);
+    border:1px solid var(--border);
+    border-radius: 10px;
+    padding: 4px;
+  }
+  .layout-launch button{
+    display:flex; align-items:center; justify-content:center;
+    width: 30px; height: 26px;
+    border-radius: 7px;
+    border:none;
+    background: transparent;
+    color: var(--text-dim);
+    cursor:pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .layout-launch button:hover{ background: var(--panel-hover); color: var(--text); }
+  .layout-launch button svg{ width:16px; height:16px; }
+
+  .clock{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  .hero{
+    padding: 28px 4px 40px;
+  }
+  .hero h1{
+    font-family:'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: clamp(28px, 4vw, 38px);
+    letter-spacing: -0.01em;
+    color: var(--text);
+  }
+  .hero h1 span{ color: var(--accent); }
+
+  main{ flex:1; padding-bottom: 60px; }
+
+  .grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+    gap: 22px 18px;
+  }
+
+  .tile{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap: 10px;
+    text-decoration:none;
+    color: inherit;
+    outline: none;
+    background:none;
+    border:none;
+    cursor:pointer;
+    padding:0;
+  }
+
+  .icon-box{
+    width: 84px; height: 84px;
+    border-radius: 20px;
+    background: linear-gradient(160deg, var(--panel) 0%, #0D1015 100%);
+    border: 1px solid var(--border);
+    display:flex; align-items:center; justify-content:center;
+    position:relative;
+    transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+  }
+
+  .icon-box svg{ width: 40px; height: 40px; display:block; }
+  .icon-box img{ width: 44px; height: 44px; display:block; object-fit:contain; }
+
+  .tile:hover .icon-box,
+  .tile:focus-visible .icon-box{
+    transform: translateY(-3px) scale(1.035);
+    border-color: var(--icon-color, var(--accent));
+    background: var(--panel-hover);
+    box-shadow: 0 10px 28px -12px var(--icon-color, var(--accent));
+  }
+
+  .tile:active .icon-box{
+    transform: translateY(-1px) scale(0.98);
+  }
+
+  .tile-label{
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-dim);
+    text-align:center;
+    line-height:1.3;
+    transition: color 0.16s ease;
+  }
+  .tile:hover .tile-label,
+  .tile:focus-visible .tile-label{ color: var(--text); }
+
+  footer{
+    padding: 16px 4px 32px;
+    font-family:'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: var(--text-dim);
+  }
+
+  /* ---------- single-app modal ---------- */
+  .modal-overlay{
+    position:fixed; inset:0; z-index:50;
+    background: rgba(6,8,11,0.75);
+    backdrop-filter: blur(6px);
+    display:flex; align-items:center; justify-content:center;
+    padding: 32px;
+  }
+  .modal-overlay[hidden]{ display:none; }
+
+  .modal-card{
+    width: min(1120px, 100%);
+    height: min(760px, 100%);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow:hidden;
+    display:flex; flex-direction:column;
+    box-shadow: 0 30px 80px -20px rgba(0,0,0,0.6);
+    transition: all 0.18s ease;
+  }
+  .modal-card.expanded{
+    width: 100%; height: 100%;
+    border-radius: 0;
+  }
+
+  .modal-toolbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: #0D1015;
+    flex-shrink:0;
+  }
+  .modal-title{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    color: var(--text-dim);
+    letter-spacing: 0.02em;
+  }
+  .modal-actions{ display:flex; align-items:center; gap: 4px; }
+  .modal-actions button{
+    width: 30px; height: 28px;
+    display:flex; align-items:center; justify-content:center;
+    border:none; border-radius: 7px;
+    background: transparent;
+    color: var(--text-dim);
+    cursor:pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .modal-actions button:hover{ background: var(--panel-hover); color: var(--text); }
+  .modal-actions button svg{ width:15px; height:15px; }
+  .modal-actions .close-btn:hover{ color: #F87171; }
+
+  .modal-card iframe{
+    flex:1;
+    width:100%;
+    border:none;
+    background:#000;
+  }
+
+  /* ---------- split / grid workspace ---------- */
+  .workspace-overlay{
+    position:fixed; inset:0; z-index:60;
+    background: var(--bg);
+    display:flex; flex-direction:column;
+  }
+  .workspace-overlay[hidden]{ display:none; }
+
+  .workspace-topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: #0D1015;
+    flex-shrink:0;
+  }
+  .workspace-topbar .layout-switch{
+    display:flex; gap:6px;
+  }
+  .workspace-topbar .layout-switch button{
+    display:flex; align-items:center; justify-content:center;
+    width:30px; height:28px;
+    border-radius:7px;
+    border:1px solid var(--border);
+    background: var(--panel);
+    color: var(--text-dim);
+    cursor:pointer;
+  }
+  .workspace-topbar .layout-switch button.active{
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .workspace-topbar .layout-switch button svg{ width:15px; height:15px; }
+
+  .workspace-close{
+    display:flex; align-items:center; gap:6px;
+    border:none; background:transparent;
+    color: var(--text-dim);
+    font-size:12.5px;
+    font-family:'JetBrains Mono', monospace;
+    cursor:pointer;
+    padding: 6px 10px;
+    border-radius:7px;
+  }
+  .workspace-close:hover{ background: var(--panel-hover); color:#F87171; }
+
+  .workspace-grid{
+    flex:1;
+    display:grid;
+    gap:2px;
+    background: var(--border);
+    overflow:hidden;
+  }
+
+  .slot{
+    background: var(--bg);
+    display:flex; flex-direction:column;
+    min-height:0; min-width:0;
+  }
+
+  .slot-bar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 6px 10px;
+    background:#0D1015;
+    border-bottom:1px solid var(--border);
+    flex-shrink:0;
+  }
+  .slot-bar span{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: var(--text-dim);
+  }
+  .slot-actions{ display:flex; gap:2px; }
+  .slot-actions button{
+    width:24px; height:22px;
+    display:flex; align-items:center; justify-content:center;
+    border:none; border-radius:6px;
+    background:transparent;
+    color: var(--text-dim);
+    cursor:pointer;
+  }
+  .slot-actions button:hover{ background: var(--panel-hover); color: var(--text); }
+  .slot-actions button svg{ width:13px; height:13px; }
+
+  .slot iframe{
+    flex:1; width:100%; border:none; background:#000;
+  }
+
+  .slot-empty{
+    flex:1;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap: 14px;
+    padding: 20px;
+  }
+  .slot-empty-label{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+  }
+  .slot-picker{
+    display:flex; flex-wrap:wrap; gap:10px;
+    justify-content:center;
+    max-width: 320px;
+  }
+  .slot-picker button{
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    border:1px solid var(--border);
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 10px 12px;
+    cursor:pointer;
+    color: var(--text-dim);
+    transition: border-color 0.15s ease, color 0.15s ease;
+  }
+  .slot-picker button:hover{ color: var(--text); }
+  .slot-picker button svg, .slot-picker button img{ width:22px; height:22px; }
+  .slot-picker button span{ font-size: 10.5px; }
+
+  @media (prefers-reduced-motion: reduce){
+    .icon-box, .modal-card{ transition:none; }
+  }
+
+  @media (max-width: 640px){
+    .workspace-grid{ grid-template-columns: 1fr !important; grid-template-rows: none !important; }
+  }
+
+  @media (max-width: 420px){
+    .wrap{ padding:0 18px; }
+    .grid{ grid-template-columns: repeat(auto-fill, minmax(96px,1fr)); gap:18px 12px; }
+    .icon-box{ width:68px; height:68px; border-radius:16px; }
+    .icon-box svg{ width:32px; height:32px; }
+    .icon-box img{ width:36px; height:36px; }
+    .modal-overlay{ padding:0; }
+    .modal-card{ border-radius:0; }
+    .header-right{ gap:8px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="mesh">
+  <svg viewBox="0 0 1000 600" preserveAspectRatio="none">
+    <g stroke="#4ADE80" stroke-width="0.6" fill="none">
+      <line x1="80" y1="60" x2="260" y2="180"/>
+      <line x1="260" y1="180" x2="180" y2="360"/>
+      <line x1="260" y1="180" x2="480" y2="120"/>
+      <line x1="480" y1="120" x2="700" y2="220"/>
+      <line x1="700" y1="220" x2="900" y2="140"/>
+      <line x1="180" y1="360" x2="420" y2="440"/>
+      <line x1="420" y1="440" x2="680" y2="480"/>
+      <line x1="680" y1="480" x2="880" y2="400"/>
+      <line x1="700" y1="220" x2="680" y2="480"/>
+    </g>
+    <g fill="#4ADE80">
+      <circle cx="80" cy="60" r="2.5"/>
+      <circle cx="260" cy="180" r="2.5"/>
+      <circle cx="180" cy="360" r="2.5"/>
+      <circle cx="480" cy="120" r="2.5"/>
+      <circle cx="700" cy="220" r="2.5"/>
+      <circle cx="900" cy="140" r="2.5"/>
+      <circle cx="420" cy="440" r="2.5"/>
+      <circle cx="680" cy="480" r="2.5"/>
+      <circle cx="880" cy="400" r="2.5"/>
+    </g>
+  </svg>
+</div>
+
+<div class="wrap">
+  <header>
+    <div class="brand"><span class="dot"></span> offr · tailnet</div>
+    <div class="header-right">
+      <div class="layout-launch" role="group" aria-label="Open a multi-app workspace">
+        <button id="openSplit" title="Split view — 2 apps">
+          <svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4.5" width="8" height="15" rx="1.5" stroke="currentColor" stroke-width="1.6"/><rect x="12.5" y="4.5" width="8" height="15" rx="1.5" stroke="currentColor" stroke-width="1.6"/></svg>
+        </button>
+        <button id="openQuad" title="Grid view — up to 4 apps">
+          <svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.3" stroke="currentColor" stroke-width="1.6"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="1.3" stroke="currentColor" stroke-width="1.6"/><rect x="3.5" y="13" width="7.5" height="7.5" rx="1.3" stroke="currentColor" stroke-width="1.6"/><rect x="13" y="13" width="7.5" height="7.5" rx="1.3" stroke="currentColor" stroke-width="1.6"/></svg>
+        </button>
+      </div>
+      <div class="clock" id="clock">--:--:--</div>
+    </div>
+  </header>
+
+  <div class="hero">
+    <h1>Home<span>base</span></h1>
+  </div>
+
+  <main>
+    <div class="grid" id="grid"></div>
+  </main>
+
+  <footer>
+    <span id="count">5 services</span>
+  </footer>
+</div>
+
+<!-- single-app modal -->
+<div class="modal-overlay" id="modalOverlay" hidden>
+  <div class="modal-card" id="modalCard">
+    <div class="modal-toolbar">
+      <div class="modal-title" id="modalTitle"></div>
+      <div class="modal-actions">
+        <button id="modalExpand" title="Expand">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M9 3H3v6M15 3h6v6M15 21h6v-6M9 21H3v-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button id="modalOpenExternal" title="Open in new tab">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M14 4h6v6M20 4L10 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 13.5V19a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 19V7A1.5 1.5 0 0 1 5 5.5h5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button id="modalClose" class="close-btn" title="Close">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </div>
+    <iframe id="modalIframe" src="about:blank" referrerpolicy="no-referrer"></iframe>
+  </div>
+</div>
+
+<!-- split / grid workspace -->
+<div class="workspace-overlay" id="workspaceOverlay" hidden>
+  <div class="workspace-topbar">
+    <div class="layout-switch">
+      <button data-n="2" title="Split — 2 apps">
+        <svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4.5" width="8" height="15" rx="1.5" stroke="currentColor" stroke-width="1.6"/><rect x="12.5" y="4.5" width="8" height="15" rx="1.5" stroke="currentColor" stroke-width="1.6"/></svg>
+      </button>
+      <button data-n="4" title="Grid — 4 apps">
+        <svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.3" stroke="currentColor" stroke-width="1.6"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="1.3" stroke="currentColor" stroke-width="1.6"/><rect x="3.5" y="13" width="7.5" height="7.5" rx="1.3" stroke="currentColor" stroke-width="1.6"/><rect x="13" y="13" width="7.5" height="7.5" rx="1.3" stroke="currentColor" stroke-width="1.6"/></svg>
+      </button>
+    </div>
+    <button class="workspace-close" id="workspaceClose">
+      <svg viewBox="0 0 24 24" fill="none" width="14" height="14"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      Close
+    </button>
+  </div>
+  <div class="workspace-grid" id="workspaceGrid"></div>
+</div>
+
+<script>
+  // ---- edit this list to add / remove / reorder tiles ----
+  const APPS = [
+    {
+      name: "Download Queue",
+      url: "http://offr.tail05ae98.ts.net:8088/",
+      color: "#38BDF8",
+      icon: "download"
+    },
+    {
+      name: "Jellyfin",
+      url: "http://offr.tail05ae98.ts.net:8096/web/#/home",
+      color: "#AA5CC3",
+      icon: "jellyfin"
+    },
+    {
+      name: "Router",
+      url: "http://192.168.101.1/",
+      color: "#FFB454",
+      icon: "router"
+    },
+    {
+      name: "n8n",
+      url: "http://offr.tail05ae98.ts.net:5678/home/workflows",
+      color: "#EA4B71",
+      icon: "n8n"
+    },
+    {
+      name: "Dashboard",
+      url: "http://offr.tail05ae98.ts.net:19999/spaces/offr/rooms/local/overview#metrics_correlation=false&after=-900&before=0&modal=&modalTab=&_o=q1ZKzkgsKvFLzE3VLUvMUbJSyk3NK40PriwuSc3VNVDSUYrOSy1JSSxJjE9MT80ric_JT07MidXVxa-tFgA",
+      color: "#4ADE80",
+      icon: "dashboard"
+    }
+  ];
+
+  const ICONS = {
+    download: `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 3v11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M7.5 10.5L12 15l4.5-4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M4 16.5V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    </svg>`,
+    router: `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="3.5" y="13" width="17" height="7" rx="1.6" stroke="currentColor" stroke-width="1.8"/>
+      <circle cx="8" cy="16.5" r="0.9" fill="currentColor"/>
+      <circle cx="11.2" cy="16.5" r="0.9" fill="currentColor"/>
+      <path d="M15 16.5h3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      <path d="M8 10.5c1.2-1.2 2.6-1.8 4-1.8s2.8.6 4 1.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      <path d="M5.5 8c2-2 4.2-3 6.5-3s4.5 1 6.5 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity="0.6"/>
+    </svg>`,
+    n8n: `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="5.5" cy="12" r="2.3" stroke="currentColor" stroke-width="1.8"/>
+      <circle cx="18.5" cy="6" r="2.3" stroke="currentColor" stroke-width="1.8"/>
+      <circle cx="18.5" cy="18" r="2.3" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M7.6 11.1L16.4 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      <path d="M7.6 12.9L16.4 17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+    </svg>`,
+    dashboard: `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M5 15a7 7 0 1 1 14 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M5.6 15.9l1.2-0.85" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+      <path d="M18.4 15.9l-1.2-0.85" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+      <path d="M12 15l3-4.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      <circle cx="12" cy="15" r="1.1" fill="currentColor"/>
+    </svg>`,
+    jellyfin: `<img src="jellyfin.png" alt="Jellyfin">`
+  };
+
+  function iconMarkup(app){
+    return ICONS[app.icon] || '';
+  }
+
+  // ---------------- home grid ----------------
+  const grid = document.getElementById('grid');
+  APPS.forEach((app) => {
+    const btn = document.createElement('button');
+    btn.className = 'tile';
+    btn.style.setProperty('--icon-color', app.color);
+    btn.innerHTML = `
+      <div class="icon-box" style="color:${app.color}">${iconMarkup(app)}</div>
+      <div class="tile-label">${app.name}</div>
+    `;
+    btn.addEventListener('click', () => openModal(app));
+    grid.appendChild(btn);
+  });
+
+  document.getElementById('count').textContent = APPS.length + ' service' + (APPS.length === 1 ? '' : 's');
+
+  function tick(){
+    const d = new Date();
+    document.getElementById('clock').textContent = d.toLocaleTimeString([], {hour12:false});
+  }
+  tick();
+  setInterval(tick, 1000);
+
+  // ---------------- single-app modal ----------------
+  const modalOverlay = document.getElementById('modalOverlay');
+  const modalCard = document.getElementById('modalCard');
+  const modalIframe = document.getElementById('modalIframe');
+  const modalTitle = document.getElementById('modalTitle');
+
+  function openModal(app){
+    modalTitle.textContent = app.name;
+    modalIframe.src = app.url;
+    modalCard.classList.remove('expanded');
+    modalOverlay.hidden = false;
+    document.getElementById('modalOpenExternal').onclick = () => window.open(app.url, '_blank', 'noopener');
+  }
+  function closeModal(){
+    modalOverlay.hidden = true;
+    modalIframe.src = 'about:blank';
+  }
+  document.getElementById('modalClose').addEventListener('click', closeModal);
+  document.getElementById('modalExpand').addEventListener('click', () => modalCard.classList.toggle('expanded'));
+  modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape'){
+      if (!modalOverlay.hidden) closeModal();
+      if (!workspaceOverlay.hidden) closeWorkspace();
+    }
+  });
+
+  // ---------------- split / grid workspace ----------------
+  const workspaceOverlay = document.getElementById('workspaceOverlay');
+  const workspaceGrid = document.getElementById('workspaceGrid');
+  const layoutButtons = document.querySelectorAll('.layout-switch button');
+
+  let workspaceMode = 2;       // 2 or 4
+  let slots = [null, null, null, null];
+
+  function openWorkspace(n){
+    workspaceMode = n;
+    slots = new Array(n).fill(null);
+    workspaceOverlay.hidden = false;
+    layoutButtons.forEach(b => b.classList.toggle('active', Number(b.dataset.n) === n));
+    renderWorkspace();
+  }
+  function closeWorkspace(){
+    workspaceOverlay.hidden = true;
+    slots = [null, null, null, null];
+  }
+  function setWorkspaceMode(n){
+    // keep already-open apps where possible when switching layout size
+    const kept = slots.filter(Boolean).slice(0, n);
+    workspaceMode = n;
+    slots = new Array(n).fill(null);
+    kept.forEach((app, i) => slots[i] = app);
+    layoutButtons.forEach(b => b.classList.toggle('active', Number(b.dataset.n) === n));
+    renderWorkspace();
+  }
+
+  function renderWorkspace(){
+    workspaceGrid.style.gridTemplateColumns = workspaceMode === 2 ? '1fr 1fr' : '1fr 1fr';
+    workspaceGrid.style.gridTemplateRows = workspaceMode === 2 ? '1fr' : '1fr 1fr';
+
+    workspaceGrid.innerHTML = '';
+    slots.forEach((app, i) => {
+      const slot = document.createElement('div');
+      slot.className = 'slot';
+      if (!app){
+        slot.innerHTML = `
+          <div class="slot-empty">
+            <div class="slot-empty-label">Slot ${i + 1} — choose an app</div>
+            <div class="slot-picker"></div>
+          </div>`;
+        const picker = slot.querySelector('.slot-picker');
+        APPS.forEach(a => {
+          const b = document.createElement('button');
+          b.innerHTML = `${iconMarkup(a)}<span>${a.name}</span>`;
+          b.style.color = a.color;
+          b.addEventListener('click', () => { slots[i] = a; renderWorkspace(); });
+          picker.appendChild(b);
+        });
+      } else {
+        slot.innerHTML = `
+          <div class="slot-bar">
+            <span>${app.name}</span>
+            <div class="slot-actions">
+              <button class="ext" title="Open in new tab">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M14 4h6v6M20 4L10 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 13.5V19a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 19V7A1.5 1.5 0 0 1 5 5.5h5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <button class="clr" title="Clear slot">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              </button>
+            </div>
+          </div>
+          <iframe src="${app.url}" referrerpolicy="no-referrer"></iframe>
+        `;
+        slot.querySelector('.ext').addEventListener('click', () => window.open(app.url, '_blank', 'noopener'));
+        slot.querySelector('.clr').addEventListener('click', () => { slots[i] = null; renderWorkspace(); });
+      }
+      workspaceGrid.appendChild(slot);
+    });
+  }
+
+  document.getElementById('openSplit').addEventListener('click', () => openWorkspace(2));
+  document.getElementById('openQuad').addEventListener('click', () => openWorkspace(4));
+  document.getElementById('workspaceClose').addEventListener('click', closeWorkspace);
+  layoutButtons.forEach(b => b.addEventListener('click', () => setWorkspaceMode(Number(b.dataset.n))));
+</script>
+
+</body>
+</html>
