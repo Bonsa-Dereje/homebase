@@ -263,13 +263,10 @@
   </div>
   <div class="controls">
     <label for="endpoint">host</label>
-    <input id="endpoint" type="text" value="https://offr.tail05ae98.ts.net" spellcheck="false">
+    <input id="endpoint" type="text" value="https://offr.tail05ae98.ts.net/ollama" spellcheck="false">
     <label for="model">model</label>
     <select id="model">
-      <option value="llama3.2:3b">llama3.2:3b</option>
-      <option value="mistral:latest">mistral:latest</option>
-      <option value="mistral:7b">mistral:7b</option>
-      <option value="qwen2.5:1.5b" selected>qwen2.5:1.5b</option>
+      <option value="">loading models…</option>
     </select>
     <button class="icon-btn" id="clearBtn" title="Clear conversation">Clear</button>
   </div>
@@ -359,6 +356,8 @@
     const base = normalizeEndpoint(endpointEl.value);
     if (!base){
       statusText.textContent = 'no host set';
+      modelEl.innerHTML = '<option value="">no host set</option>';
+      modelEl.disabled = true;
       return;
     }
     statusText.textContent = 'checking connection…';
@@ -366,10 +365,35 @@
       const res = await fetch(base + '/api/tags', { method: 'GET' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
-      const names = (data.models || []).map(m => m.name);
-      statusText.textContent = names.length ? (names.length + ' model(s) available') : 'connected';
+      const models = data.models || [];
+      const names = models.map(m => m.name);
+
+      if (names.length){
+        const previous = modelEl.value;
+        modelEl.innerHTML = '';
+        names.forEach(name => {
+          const opt = document.createElement('option');
+          opt.value = name;
+          opt.textContent = name;
+          modelEl.appendChild(opt);
+        });
+        // keep the previously selected model if it's still available, else default to first
+        if (names.includes(previous)){
+          modelEl.value = previous;
+        } else {
+          modelEl.value = names[0];
+        }
+        modelEl.disabled = false;
+        statusText.textContent = names.length + ' model(s) available';
+      } else {
+        modelEl.innerHTML = '<option value="">no models found</option>';
+        modelEl.disabled = true;
+        statusText.textContent = 'connected — no models installed';
+      }
     }catch(err){
       statusText.textContent = 'unreachable — ' + err.message;
+      modelEl.innerHTML = '<option value="">unreachable</option>';
+      modelEl.disabled = true;
     }
   }
 
@@ -390,6 +414,10 @@
     const base = normalizeEndpoint(endpointEl.value);
     if (!base){
       alert('Set the Ollama host first.');
+      return;
+    }
+    if (!modelEl.value){
+      alert('No model available. Check the host connection.');
       return;
     }
 
