@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>offr — clock</title>
+<meta name="description" content="Bedside clock synced from offr">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2222%22 fill=%22%230A0C10%22/><circle cx=%2250%22 cy=%2250%22 r=%2216%22 fill=%22none%22 stroke=%22%234ADE80%22 stroke-width=%228%22/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0A0C10;
+    --panel: #12161D;
+    --panel-hover: #181D26;
+    --border: #232A35;
+    --text: #E8EAED;
+    --text-dim: #7C8493;
+    --accent: #4ADE80;
+    --amber: #FFB454;
+    --red: #F87171;
+  }
+
+  *{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color: transparent; }
+
+  html,body{
+    height:100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family:'Inter', system-ui, sans-serif;
+    overflow:hidden;
+    user-select:none;
+  }
+
+  .mesh{
+    position:fixed; inset:0; z-index:0;
+    background-image:
+      radial-gradient(circle at 15% 20%, rgba(74,222,128,0.06), transparent 40%),
+      radial-gradient(circle at 85% 15%, rgba(255,180,84,0.05), transparent 40%),
+      radial-gradient(circle at 50% 90%, rgba(74,222,128,0.04), transparent 45%);
+    pointer-events:none;
+    transition: opacity 0.6s ease;
+  }
+
+  .stage{
+    position:relative; z-index:1;
+    height:100vh;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    text-align:center;
+    cursor:pointer;
+    padding: 24px;
+  }
+
+  .brand{
+    position:fixed; top:22px; left:26px; z-index:2;
+    display:flex; align-items:center; gap:9px;
+    font-family:'JetBrains Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+  .brand .dot{
+    width:7px; height:7px; border-radius:50%;
+    background: var(--dot-color, var(--text-dim));
+    box-shadow: 0 0 8px var(--dot-color, transparent);
+    transition: background 0.4s ease, box-shadow 0.4s ease;
+  }
+
+  .endpoint{
+    position:fixed; top:22px; right:26px; z-index:2;
+    font-family:'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    opacity: 0.55;
+    letter-spacing: 0.02em;
+  }
+
+  .date-row{
+    font-family:'JetBrains Mono', monospace;
+    font-size: clamp(13px, 1.6vw, 18px);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 18px;
+    transition: color 0.4s ease;
+  }
+
+  .time{
+    font-family:'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: clamp(64px, 19vw, 240px);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    display:flex;
+    align-items:baseline;
+    gap: clamp(4px, 0.6vw, 10px);
+    transition: color 0.4s ease, filter 0.3s ease;
+  }
+  .time .colon{
+    color: var(--accent);
+    transition: opacity 0.5s ease, color 0.4s ease;
+  }
+  .time.stale{ color: var(--text-dim); }
+  .time .ms{
+    font-size: 0.24em;
+    font-weight: 500;
+    color: var(--text-dim);
+    align-self: flex-end;
+    padding-bottom: 0.22em;
+    min-width: 2.6em;
+    text-align:left;
+  }
+
+  .status-row{
+    margin-top: 26px;
+    display:flex; align-items:center; gap: 10px;
+    font-family:'JetBrains Mono', monospace;
+    font-size: clamp(12px, 1.4vw, 15px);
+    color: var(--text-dim);
+    letter-spacing: 0.03em;
+    min-height: 20px;
+  }
+  .status-dot{
+    width:8px; height:8px; border-radius:50%;
+    background: var(--status-color, var(--accent));
+    box-shadow: 0 0 10px var(--status-color, var(--accent));
+    transition: background 0.4s ease, box-shadow 0.4s ease;
+  }
+
+  .hint{
+    position:fixed; bottom: 30px; left:0; right:0; z-index:2;
+    text-align:center;
+    font-family:'JetBrains Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    opacity: 0.5;
+    pointer-events:none;
+    transition: opacity 0.3s ease;
+  }
+
+  .sync-btn{
+    position:fixed; bottom: 30px; right: 30px; z-index:3;
+    width: 58px; height: 58px;
+    border-radius: 50%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    display:flex; align-items:center; justify-content:center;
+    color: var(--text-dim);
+    cursor:pointer;
+    transition: transform 0.15s ease, border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+  }
+  .sync-btn:hover{ background: var(--panel-hover); color: var(--accent); border-color: var(--accent); }
+  .sync-btn:active{ transform: scale(0.92); }
+  .sync-btn svg{ width:22px; height:22px; transition: transform 0.5s cubic-bezier(.4,1.6,.4,1); }
+  .sync-btn.spinning svg{ transform: rotate(360deg); }
+
+  /* ripple feedback on tap */
+  .ripple{
+    position:fixed; z-index:1;
+    border-radius:50%;
+    background: radial-gradient(circle, rgba(74,222,128,0.16), transparent 70%);
+    pointer-events:none;
+    transform: translate(-50%,-50%) scale(0);
+    animation: rippleAnim 0.7s ease-out forwards;
+  }
+  @keyframes rippleAnim{
+    0%{ transform: translate(-50%,-50%) scale(0); opacity: 1; }
+    100%{ transform: translate(-50%,-50%) scale(1); opacity: 0; }
+  }
+
+  @media (max-width: 520px){
+    .endpoint{ display:none; }
+    .sync-btn{ width:52px; height:52px; bottom:22px; right:22px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="mesh"></div>
+
+<div class="brand"><span class="dot" id="brandDot"></span>OFFR · CLOCK</div>
+<div class="endpoint" id="endpointLabel">offr.tail05ae98.ts.net:8765/time</div>
+
+<div class="stage" id="stage">
+  <div class="date-row" id="dateRow">— — —</div>
+  <div class="time" id="timeRow">
+    <span id="hh">--</span><span class="colon">:</span><span id="mm">--</span><span class="colon">:</span><span id="ss">--</span><span class="ms" id="ms">.---</span>
+  </div>
+  <div class="status-row">
+    <span class="status-dot" id="statusDot"></span>
+    <span id="statusText">tap anywhere to sync</span>
+  </div>
+</div>
+
+<div class="hint" id="hint">tap to sync with offr</div>
+
+<button class="sync-btn" id="syncBtn" title="Sync time" aria-label="Sync time">
+  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M4 12a8 8 0 0 1 14-5.2M20 12a8 8 0 0 1-14 5.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    <path d="M18.5 3v4.3h-4.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M5.5 21v-4.3h4.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+</button>
+
+<script>
+  const ENDPOINT = 'http://offr.tail05ae98.ts.net:8765/time';
+
+  const stage = document.getElementById('stage');
+  const syncBtn = document.getElementById('syncBtn');
+  const hint = document.getElementById('hint');
+  const brandDot = document.getElementById('brandDot');
+  const statusDot = document.getElementById('statusDot');
+  const statusText = document.getElementById('statusText');
+  const timeRow = document.getElementById('timeRow');
+  const dateRow = document.getElementById('dateRow');
+  const hh = document.getElementById('hh');
+  const mm = document.getElementById('mm');
+  const ss = document.getElementById('ss');
+  const ms = document.getElementById('ms');
+
+  // offset (ms) between server clock and local performance clock, established at last sync
+  let syncedAt = null;      // performance.now() at moment of last successful sync
+  let serverUnixMs = null;  // server's unix_ms at that moment
+  let timezoneLabel = null;
+  let tickHandle = null;
+  let syncing = false;
+
+  function pad(n, len = 2){ return String(Math.floor(n)).padStart(len, '0'); }
+
+  function render(){
+    let displayMs;
+    if (serverUnixMs !== null){
+      const elapsed = performance.now() - syncedAt;
+      displayMs = serverUnixMs + elapsed;
+    } else {
+      displayMs = Date.now();
+    }
+    const d = new Date(displayMs);
+    hh.textContent = pad(d.getUTCHours ? d.getHours() : d.getHours());
+    mm.textContent = pad(d.getMinutes());
+    ss.textContent = pad(d.getSeconds());
+    ms.textContent = '.' + pad(d.getMilliseconds(), 3);
+    dateRow.textContent = d.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric' }) +
+      (timezoneLabel ? '  ·  ' + timezoneLabel : '');
+  }
+
+  function startTicking(){
+    if (tickHandle) cancelAnimationFrame(tickHandle);
+    const loop = () => { render(); tickHandle = requestAnimationFrame(loop); };
+    loop();
+  }
+
+  function secondsSince(t){ return Math.max(0, Math.round((performance.now() - t) / 1000)); }
+
+  function updateStaleness(){
+    if (syncedAt === null) return;
+    const secs = secondsSince(syncedAt);
+    if (secs < 60){
+      statusText.textContent = 'synced ' + (secs < 2 ? 'just now' : secs + 's ago');
+      setStatusColor('var(--accent)');
+      timeRow.classList.remove('stale');
+    } else {
+      const mins = Math.round(secs / 60);
+      statusText.textContent = 'drifting — synced ' + mins + 'm ago, tap to correct';
+      setStatusColor('var(--amber)');
+      timeRow.classList.add('stale');
+    }
+  }
+  setInterval(updateStaleness, 1000);
+
+  function setStatusColor(c){
+    statusDot.style.setProperty('--status-color', c);
+    brandDot.style.setProperty('--dot-color', c);
+  }
+
+  function ripple(x, y){
+    const r = document.createElement('div');
+    const size = Math.max(window.innerWidth, window.innerHeight) * 1.4;
+    r.className = 'ripple';
+    r.style.left = x + 'px';
+    r.style.top = y + 'px';
+    r.style.width = size + 'px';
+    r.style.height = size + 'px';
+    document.body.appendChild(r);
+    r.addEventListener('animationend', () => r.remove());
+  }
+
+  async function sync(x, y){
+    if (syncing) return;
+    syncing = true;
+    syncBtn.classList.add('spinning');
+    statusText.textContent = 'syncing…';
+    setStatusColor('var(--text-dim)');
+    if (typeof x === 'number') ripple(x, y);
+
+    try {
+      const t0 = performance.now();
+      const res = await fetch(ENDPOINT, { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      const t1 = performance.now();
+      const roundTrip = t1 - t0;
+
+      // assume the server timestamp landed roughly mid-request; correct for latency
+      serverUnixMs = data.unix_ms + roundTrip / 2;
+      syncedAt = t1;
+      timezoneLabel = data.timezone || null;
+
+      render();
+      statusText.textContent = 'synced just now · ' + Math.round(roundTrip) + 'ms round trip';
+      setStatusColor('var(--accent)');
+      hint.style.opacity = '0';
+    } catch (err) {
+      statusText.textContent = 'sync failed — check connection to offr';
+      setStatusColor('var(--red)');
+      console.error(err);
+    } finally {
+      syncing = false;
+      syncBtn.classList.remove('spinning');
+    }
+  }
+
+  stage.addEventListener('click', (e) => sync(e.clientX, e.clientY));
+  syncBtn.addEventListener('click', (e) => { e.stopPropagation(); sync(e.clientX, e.clientY); });
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' || e.code === 'Enter') sync(window.innerWidth/2, window.innerHeight/2);
+  });
+
+  startTicking();
+  // attempt an initial sync automatically on load
+  sync();
+</script>
+
+</body>
+</html>
