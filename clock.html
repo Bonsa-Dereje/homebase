@@ -195,11 +195,11 @@
   </div>
   <div class="status-row">
     <span class="status-dot" id="statusDot"></span>
-    <span id="statusText">tap anywhere to sync</span>
+    <span id="statusText">tap anywhere for a snapshot</span>
   </div>
 </div>
 
-<div class="hint" id="hint">tap to sync with offr</div>
+<div class="hint" id="hint">tap for a snapshot from offr</div>
 
 <button class="sync-btn" id="syncBtn" title="Sync time" aria-label="Sync time">
   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -225,55 +225,49 @@
   const ss = document.getElementById('ss');
   const ms = document.getElementById('ms');
 
-  // offset (ms) between server clock and local performance clock, established at last sync
-  let syncedAt = null;      // performance.now() at moment of last successful sync
-  let serverUnixMs = null;  // server's unix_ms at that moment
-  let timezoneLabel = null;
-  let tickHandle = null;
   let syncing = false;
+  let hasSynced = false;
 
   function pad(n, len = 2){ return String(Math.floor(n)).padStart(len, '0'); }
 
-  function render(){
-    let displayMs;
-    if (serverUnixMs !== null){
-      const elapsed = performance.now() - syncedAt;
-      displayMs = serverUnixMs + elapsed;
-    } else {
-      displayMs = Date.now();
+  // renders a single frozen snapshot from the server response — no local ticking
+  function renderSnapshot(data){
+    const tz = data.timezone || 'UTC';
+    const d = new Date(data.unix_ms);
+    let parts;
+    try {
+      parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: tz, hour12: false,
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+      }).formatToParts(d).reduce((acc, p) => { acc[p.type] = p.value; return acc; }, {});
+    } catch (e) {
+      parts = { hour: pad(d.getUTCHours()), minute: pad(d.getUTCMinutes()), second: pad(d.getUTCSeconds()) };
     }
-    const d = new Date(displayMs);
-    hh.textContent = pad(d.getUTCHours ? d.getHours() : d.getHours());
-    mm.textContent = pad(d.getMinutes());
-    ss.textContent = pad(d.getSeconds());
-    ms.textContent = '.' + pad(d.getMilliseconds(), 3);
-    dateRow.textContent = d.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric' }) +
-      (timezoneLabel ? '  ·  ' + timezoneLabel : '');
-  }
+    hh.textContent = parts.hour;
+    mm.textContent = parts.minute;
+    ss.textContent = parts.second;
+    ms.textContent = '.' + pad(Math.round(data.unix_ms % 1000), 3);
 
-  function startTicking(){
-    if (tickHandle) cancelAnimationFrame(tickHandle);
-    const loop = () => { render(); tickHandle = requestAnimationFrame(loop); };
-    loop();
-  }
-
-  function secondsSince(t){ return Math.max(0, Math.round((performance.now() - t) / 1000)); }
-
-  function updateStaleness(){
-    if (syncedAt === null) return;
-    const secs = secondsSince(syncedAt);
-    if (secs < 60){
-      statusText.textContent = 'synced ' + (secs < 2 ? 'just now' : secs + 's ago');
-      setStatusColor('var(--accent)');
-      timeRow.classList.remove('stale');
-    } else {
-      const mins = Math.round(secs / 60);
-      statusText.textContent = 'drifting — synced ' + mins + 'm ago, tap to correct';
-      setStatusColor('var(--amber)');
-      timeRow.classList.add('stale');
+    let dateStr;
+    try {
+      dateStr = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz, weekday: 'long', month: 'long', day: 'numeric'
+      }).format(d);
+    } catch (e) {
+      dateStr = d.toUTCString();
     }
+    dateRow.textContent = dateStr + '  ·  ' + tz;
+    timeRow.classList.remove('stale');
   }
-  setInterval(updateStaleness, 1000);
+
+  function clearSnapshot(){
+    hh.textContent = '--';
+    mm.textContent = '--';
+    ss.textContent = '--';
+    ms.textContent = '.---';
+    dateRow.textContent = 'not synced';
+    timeRow.classList.add('stale');
+  }
 
   function setStatusColor(c){
     statusDot.style.setProperty('--status-color', c);
@@ -300,25 +294,32 @@
     setStatusColor('var(--text-dim)');
     if (typeof x === 'number') ripple(x, y);
 
+    // no fallback to the browser's own clock — if the endpoint doesn't
+    // respond, this fails visibly instead of quietly showing local time
+    let timeoutHandle;
     try {
+      const controller = new AbortController();
+      timeoutHandle = setTimeout(() => controller.abort(), 5000);
       const t0 = performance.now();
-      const res = await fetch(ENDPOINT, { cache: 'no-store' });
+      const res = await fetch(ENDPOINT, { cache: 'no-store', signal: controller.signal });
+      clearTimeout(timeoutHandle);
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
-      const t1 = performance.now();
-      const roundTrip = t1 - t0;
+      const roundTrip = Math.round(performance.now() - t0);
 
-      // assume the server timestamp landed roughly mid-request; correct for latency
-      serverUnixMs = data.unix_ms + roundTrip / 2;
-      syncedAt = t1;
-      timezoneLabel = data.timezone || null;
-
-      render();
-      statusText.textContent = 'synced just now · ' + Math.round(roundTrip) + 'ms round trip';
+      renderSnapshot(data);
+      hasSynced = true;
+      statusText.textContent = 'snapshot taken · ' + roundTrip + 'ms round trip · tap to refresh';
       setStatusColor('var(--accent)');
       hint.style.opacity = '0';
     } catch (err) {
-      statusText.textContent = 'sync failed — check connection to offr';
+      clearTimeout(timeoutHandle);
+      clearSnapshot();
+      hasSynced = false;
+      const timedOut = err.name === 'AbortError';
+      statusText.textContent = timedOut
+        ? 'timed out — offr time server unreachable'
+        : 'failed — offr time server unreachable';
       setStatusColor('var(--red)');
       console.error(err);
     } finally {
@@ -333,7 +334,7 @@
     if (e.code === 'Space' || e.code === 'Enter') sync(window.innerWidth/2, window.innerHeight/2);
   });
 
-  startTicking();
+  clearSnapshot();
   // attempt an initial sync automatically on load
   sync();
 </script>
